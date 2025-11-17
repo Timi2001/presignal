@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const CURRENCY_PAIRS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD', 'XAU/USD'];
+const CURRENCY_PAIRS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'XAU/USD'];
 
 class APIKeyManager {
   private geminiKeys: string[];
@@ -47,7 +47,7 @@ interface CollectedData {
   metadata: Record<string, any>;
 }
 
-async function callGeminiWithRetry(prompt: string, maxRetries = 2): Promise<string> {
+async function callGeminiWithRetry(prompt: string, maxRetries = 1): Promise<string> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       await rateLimiter.wait();
@@ -61,17 +61,15 @@ async function callGeminiWithRetry(prompt: string, maxRetries = 2): Promise<stri
         }
       });
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 15000)
+      );
+      
+      const generatePromise = model.generateContent(prompt).then(result => result.response.text());
+      
+      return await Promise.race([generatePromise, timeoutPromise]) as string;
     } catch (error: any) {
       console.error(`[v0] Gemini attempt ${attempt + 1} failed:`, error.message);
-      
-      if (error.message?.includes('429') || error.message?.includes('quota')) {
-        // Wait longer on rate limit
-        await new Promise(resolve => setTimeout(resolve, 5000 * (attempt + 1)));
-        continue;
-      }
       
       if (attempt === maxRetries - 1) {
         throw error;
@@ -87,25 +85,22 @@ export async function collectAllMarketData(): Promise<CollectedData[]> {
   const allData: CollectedData[] = [];
 
   try {
-    for (let i = 0; i < CURRENCY_PAIRS.length; i += 2) {
-      const batch = CURRENCY_PAIRS.slice(i, i + 2);
-      
-      for (const pair of batch) {
-        try {
-          const prompt = `Search the web for the latest market intelligence on ${pair} in the past 6 hours.
+    const promises = CURRENCY_PAIRS.map(async (pair) => {
+      try {
+        const prompt = `Search the web for the latest market intelligence on ${pair} in the past 6 hours.
 
 Focus on:
-1. Breaking news from major financial outlets (Reuters, Bloomberg, WSJ, FT)
-2. Social media sentiment from traders and analysts
-3. Central bank statements or economic data releases
-4. Unusual market movements or technical patterns
+1. Breaking news from major financial outlets
+2. Social media sentiment from traders
+3. Central bank statements or economic data
+4. Unusual market movements
 
-Return a JSON array of findings with this structure:
+Return a JSON array (max 3 items) with this structure:
 [
   {
     "source": "source name",
     "type": "news|social|economic|technical",
-    "content": "brief description of the signal",
+    "content": "brief description",
     "sentiment": "bullish|bearish|neutral",
     "confidence": 0.0-1.0,
     "timestamp": "ISO date"
@@ -114,44 +109,47 @@ Return a JSON array of findings with this structure:
 
 Only return the JSON array, no additional text.`;
 
-          const response = await callGeminiWithRetry(prompt);
+        const response = await callGeminiWithRetry(prompt);
+        
+        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const findings = JSON.parse(jsonMatch[0]);
           
-          const jsonMatch = response.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            const findings = JSON.parse(jsonMatch[0]);
-            
-            findings.forEach((finding: any) => {
-              allData.push({
-                source_type: finding.type || 'news',
-                source_name: finding.source || 'Gemini Search',
-                content: `${pair}: ${finding.content}`,
-                url: '',
-                metadata: {
-                  pair,
-                  sentiment: finding.sentiment,
-                  confidence: finding.confidence,
-                  timestamp: finding.timestamp
-                }
-              });
-            });
-            
-            console.log(`[v0] Collected ${findings.length} signals for ${pair}`);
-          }
-        } catch (error: any) {
-          console.error(`[v0] Error collecting data for ${pair}:`, error.message);
+          const items = findings.map((finding: any) => ({
+            source_type: finding.type || 'news',
+            source_name: finding.source || 'Gemini Search',
+            content: `${pair}: ${finding.content}`,
+            url: '',
+            metadata: {
+              pair,
+              sentiment: finding.sentiment,
+              confidence: finding.confidence,
+              timestamp: finding.timestamp
+            }
+          }));
+          
+          console.log(`[v0] Collected ${items.length} signals for ${pair}`);
+          return items;
         }
+      } catch (error: any) {
+        console.error(`[v0] Error collecting data for ${pair}:`, error.message);
       }
-      
-      if (i + 2 < CURRENCY_PAIRS.length) {
-        await new Promise(resolve => setTimeout(resolve, 3000));
+      return [];
+    });
+
+    const results = await Promise.allSettled(promises);
+    
+    results.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        allData.push(...result.value);
       }
-    }
+    });
 
     console.log(`[v0] Collection complete: ${allData.length} total items`);
     return allData;
     
   } catch (error) {
     console.error('[v0] Unified collection error:', error);
-    return allData; // Return whatever we collected
+    return allData;
   }
 }
