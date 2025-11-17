@@ -1,0 +1,17 @@
+name: Weekly Learning
+
+on:
+  schedule:
+    # Runs every Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Weekly Learning
+        run: |
+          curl -X POST "${{ secrets.VERCEL_APP_URL }}/api/weekly-learning" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
