@@ -1,0 +1,17 @@
+name: Signal Validation
+
+on:
+  schedule:
+    # Runs every 2 hours
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Signal Validation
+        run: |
+          curl -X POST "${{ secrets.VERCEL_APP_URL }}/api/validate-signals" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
