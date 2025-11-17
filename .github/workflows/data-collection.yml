@@ -1,0 +1,16 @@
+name: Data Collection & Processing
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  collect-and-process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Data Collection
+        run: |
+          curl -X POST "${{ secrets.VERCEL_APP_URL }}/api/trigger-collection" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
