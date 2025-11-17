@@ -3,6 +3,7 @@
 -- Delete test signal
 DELETE FROM signals WHERE narrative LIKE '%Sample test signal%' OR narrative LIKE '%test%';
 
+-- Fixed - signals table doesn't have validated_at column, use created_at instead
 -- Delete any mock outcomes
 DELETE FROM signal_outcomes WHERE id IN (
   SELECT so.id FROM signal_outcomes so
@@ -10,11 +11,11 @@ DELETE FROM signal_outcomes WHERE id IN (
   WHERE s.created_at < NOW() - INTERVAL '1 hour'
 );
 
--- Delete old raw data from testing
-DELETE FROM raw_data_collection WHERE created_at < NOW() - INTERVAL '1 hour';
+-- Fixed column name from created_at to collected_at for raw_data_collection
+DELETE FROM raw_data_collection WHERE collected_at < NOW() - INTERVAL '1 hour';
 
--- Reset alert history from testing
-DELETE FROM alert_history WHERE created_at < NOW() - INTERVAL '1 hour';
+-- Fixed column name from created_at to sent_at for alert_history
+DELETE FROM alert_history WHERE sent_at < NOW() - INTERVAL '1 hour';
 
 -- Keep learning_metrics but this clears any test data
 DELETE FROM learning_metrics WHERE created_at < NOW() - INTERVAL '1 hour';

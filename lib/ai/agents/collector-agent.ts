@@ -60,14 +60,14 @@ Respond in JSON format:
     }
 
     const data = await response.json();
-    let content = data.choices[0].message.content.trim();
+    let responseContent = data.choices[0].message.content.trim();
     
     // Remove \`\`\`json or \`\`\` wrapper if present
-    if (content.startsWith('\`\`\`')) {
-      content = content.replace(/^\`\`\`(?:json)?\n?/, '').replace(/\n?\`\`\`$/, '').trim();
+    if (responseContent.startsWith('\`\`\`')) {
+      responseContent = responseContent.replace(/^\`\`\`(?:json)?\n?/, '').replace(/\n?\`\`\`$/, '').trim();
     }
     
-    const result = JSON.parse(content);
+    const result = JSON.parse(responseContent);
     
     console.log('[v0] Collector Agent processed content');
     return result;

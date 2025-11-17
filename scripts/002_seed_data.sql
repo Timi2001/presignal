@@ -23,30 +23,5 @@ INSERT INTO data_sources (name, platform, weight) VALUES
   ('Twitter/X', 'twitter', 1.0)
 ON CONFLICT (name) DO NOTHING;
 
--- Insert sample test signal (for UI testing)
-INSERT INTO signals (
-  currency_pair_id,
-  signal_type,
-  category,
-  direction,
-  confidence,
-  predicted_impact,
-  keywords,
-  narrative,
-  raw_data,
-  validation_status
-)
-SELECT 
-  cp.id,
-  'signal',
-  'sentiment',
-  'bullish',
-  0.75,
-  0.5,
-  ARRAY['test', 'signal', 'forex'],
-  'Sample test signal - System initialization',
-  '{"test": true, "message": "This is a test signal for UI verification"}'::jsonb,
-  'pending'
-FROM currency_pairs cp
-WHERE cp.symbol = 'EUR/USD'
-LIMIT 1;
+-- Removed test signal insert - let the system generate real signals only
+-- No test signals needed - the system will start collecting real data immediately
